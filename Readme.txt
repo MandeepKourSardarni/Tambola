@@ -23,4 +23,9 @@ Projector-friendly Tambola / Indian Housie spinner.
 
 🎤 Perfect for parties!
 
+## Preview
+
+![Tambola Screenshot](Tambola.png)
+
+
 
