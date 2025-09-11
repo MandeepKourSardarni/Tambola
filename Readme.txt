@@ -25,7 +25,7 @@ Projector-friendly Tambola / Indian Housie spinner.
 
 ## Preview
 
-![Tambola Screenshot](Tambola.png)
+![Tambola Screenshot](assets/tambola.png)
 
 
 
