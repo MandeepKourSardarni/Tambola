@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tambola Spinner — Party++ Loud + Rules</title>
+<style>
+  :root{
+    --primary:#8e24aa; --primary-light:#c158dc;
+    --secondary:#ff4081; --secondary-dark:#c60055;
+    --yellow:#ffd400; --neon:#66f7ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    height:100%;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,Arial,sans-serif;
+    background:
+      radial-gradient(1000px 600px at 50% -200px, rgba(140,80,255,.25), transparent),
+      linear-gradient(135deg,#0b1330 0%, #2a2b6f 50%, #5a2ea6 100%);
+    color:#fff; overflow:hidden;
+  }
+
+  /* Top title */
+  .title{
+    position:fixed; top:10px; left:50%; transform:translateX(-50%);
+    z-index:5; text-align:center;
+    font-weight:900; letter-spacing:.5px;
+    font-size:clamp(20px, 3.6vmin, 36px);
+    text-shadow:0 4px 14px rgba(0,0,0,.5);
+  }
+
+  /* Rules button (top-right) */
+  .rules-btn{
+    position:fixed; top:12px; right:12px; z-index:6;
+    padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.3);
+    background:rgba(255,255,255,.15); color:#fff; font-weight:800; cursor:pointer;
+    backdrop-filter:blur(6px);
+  }
+  .rules-btn:hover{ filter:brightness(1.08) }
+
+  /* Party lights + full-screen confetti */
+  #lights{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0;}
+  #confetti{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:60;}
+
+  .wrap{position:relative; z-index:1; display:flex; min-height:100vh; gap:20px; align-items:center; justify-content:center; padding:56px 16px 16px;}
+
+  .wheelBox{position:relative; width:min(80vmin,80vw); height:min(80vmin,80vw); flex:0 0 auto;}
+  #wheel{width:100%; height:100%; display:block; border-radius:50%; box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  #fx{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+
+  /* BIG neon SPIN button (kept from previous) */
+  #spinBtn{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:clamp(120px,22vmin,200px); height:clamp(120px,22vmin,200px);
+    border-radius:50%; border:0; cursor:pointer; color:#fff; font-weight:900; letter-spacing:.6px;
+    font-size:clamp(18px,3.4vmin,30px); text-shadow:0 2px 6px rgba(0,0,0,.45);
+    background:
+      radial-gradient(120% 120% at 30% 35%, rgba(255,255,255,.35), rgba(255,255,255,0) 50%),
+      linear-gradient(160deg,#ff6ea8 0%,#ff3b82 40%,#c60055 100%);
+    box-shadow:0 18px 30px rgba(0,0,0,.45), 0 0 24px rgba(255,64,129,.45) inset, 0 0 1px 1px rgba(255,255,255,.15) inset;
+  }
+  #spinBtn::before{
+    content:""; position:absolute; inset:-8px; border-radius:50%;
+    box-shadow:0 0 18px var(--neon), 0 0 40px var(--neon), 0 0 80px var(--neon);
+    border:3px solid rgba(102,247,255,.75); animation:neonPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes neonPulse{0%,100%{filter:brightness(1);opacity:1}50%{filter:brightness(1.3);opacity:.85}}
+  #spinBtn:active{transform:translate(-50%,-50%) scale(.96)}
+
+  .side{width:min(420px,85vw); display:flex; flex-direction:column; gap:14px}
+  .panel{
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.24);
+    backdrop-filter:blur(8px); border-radius:14px; padding:14px
+  }
+  .panel.centered{ text-align:center; }      /* new: center align everything in panel */
+  .big{
+    font-size:64px; font-weight:900; color:var(--yellow);
+    text-shadow:0 0 12px rgba(255,212,0,.6);
+    display:block; text-align:center;         /* new: center the current number */
+  }
+  .row{display:flex; gap:8px; flex-wrap:wrap; justify-content:center } /* centered row */
+  .muted{opacity:.85}
+
+  .grid{display:grid; grid-template-columns:repeat(10,1fr); gap:6px}
+  .cell{aspect-ratio:1/1; border-radius:10px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); font-weight:800}
+  .cell.on{background:var(--secondary); color:#fff; border-color:rgba(0,0,0,.1); box-shadow:0 0 12px rgba(0,0,0,.2)}
+
+  /* Popup (size kept from previous “30% smaller” + number already +20%) */
+  #popup{position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:50;}
+  #popup .inner{position:relative; width:min(56vw,630px); padding:26px; background:linear-gradient(135deg,var(--primary-light),var(--primary)); border-radius:20px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  #popNum{position:relative; font-size:clamp(67px, 11.4vmin, 132px); font-weight:900; color:var(--yellow); text-shadow:0 0 14px rgba(255,212,0,.7); margin-bottom:12px}
+  #popFx{position:absolute; inset:0; pointer-events:none;}
+
+  .btn{padding:10px 16px; border-radius:10px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.15); color:#fff; cursor:pointer; font-weight:700}
+
+  /* Rules modal */
+  #rulesModal{position:fixed; inset:0; background:rgba(0,0,0,.65); display:none; align-items:center; justify-content:center; z-index:80;}
+  .rules-card{
+    width:min(640px, 90vw); max-height:80vh; overflow:auto;
+    background:linear-gradient(135deg, rgba(193,88,220,.95), rgba(142,36,170,.95));
+    border-radius:16px; border:1px solid rgba(255,255,255,.25); padding:18px 20px; box-shadow:0 20px 50px rgba(0,0,0,.5)
+  }
+  .rules-card h3{margin-bottom:8px}
+  .rules-card h4{margin:16px 0 8px 0}
+  .rules-card ul{margin-left:18px; line-height:1.4}
+  .rules-close{margin-top:14px}
+
+  @media (max-width:900px){
+    .wrap{flex-direction:column; padding:72px 10px 10px; gap:14px}
+    .side{width:100%}
+  }
+</style>
+</head>
+<body>
+  <h1 class="title">Tambola / Bingo </h1>
+  <button id="rulesBtn" class="rules-btn">Rules</button>
+
+  <!-- party string lights + full-screen confetti -->
+  <canvas id="lights"></canvas>
+  <canvas id="confetti"></canvas>
+
+  <div class="wrap">
+    <div class="wheelBox">
+      <canvas id="wheel" width="800" height="800"></canvas>
+      <canvas id="fx" width="800" height="800"></canvas>
+      <button id="spinBtn">SPIN</button>
+    </div>
+
+    <div class="side">
+      <div class="panel centered">
+        <div class="muted">Current Pick</div>
+        <span id="current" class="big">–</span>
+        <div class="row muted"><div><b id="count">0</b>/90 drawn</div><div>•</div><div>Press <b>Space</b> to spin</div></div>
+      </div>
+
+      <div class="panel centered">
+        <div class="row" style="gap:10px">
+          <button id="reset" class="btn">Reset</button>
+          <button id="downloadX" class="btn">Download Excel</button>
+          <button id="music" class="btn">Music: On</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div id="grid" class="grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="popup">
+    <div class="inner">
+      <canvas id="popFx"></canvas>
+      <div class="muted" style="margin-bottom:6px">Number</div>
+      <div id="popNum">00</div>
+      <button id="closePop" class="btn">Continue</button>
+    </div>
+  </div>
+
+  <!-- Rules Modal -->
+  <div id="rulesModal">
+    <div class="rules-card">
+      <h3>Tambola / Indian Housie — Rules</h3>
+      <p class="muted">These are the rules this spinner supports, plus the common game patterns.</p>
+
+      <h4>Spinner & Calling</h4>
+      <ul>
+        <li>Numbers are called randomly from <b>1–90</b>.</li>
+        <li>No repeats — once called, a number won’t appear again.</li>
+        <li>Each call is announced out loud and shown on screen.</li>
+        <li>Hosts control pace: click <b>Continue</b> to proceed to the next spin.</li>
+      </ul>
+
+      <h4>Tickets & Claims (host-managed)</h4>
+      <ul>
+        <li>Players mark numbers on their tickets as they are called.</li>
+        <li>When a player claims, <b>pause</b> the game and verify against called numbers.</li>
+        <li>Typical winning patterns (choose any set you like):</li>
+      </ul>
+      <ul>
+        <li><b>Early Five</b> — any 5 numbers anywhere on the ticket.</li>
+        <li><b>Four Corners</b> — all four corner numbers.</li>
+        <li><b>Top Line</b>, <b>Middle Line</b>, <b>Bottom Line</b> — all numbers in that line.</li>
+        <li><b>Full House (1st)</b> — all 15 numbers on a ticket.</li>
+        <li><b>Second Full House</b> — second ticket to complete all numbers.</li>
+      </ul>
+
+      <h4>Notes</h4>
+      <ul>
+        <li>This spinner draws and tracks numbers; it doesn’t validate tickets automatically.</li>
+        <li>Use <b>Download Excel</b> to save the draw order (Number, Position).</li>
+        <li>Use the <b>Music</b> button anytime to start/stop background music.</li>
+      </ul>
+
+      <button id="rulesClose" class="btn rules-close">Close</button>
+    </div>
+  </div>
+
+  <!-- Excel (with CSV fallback if offline) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+
+<script>
+/* ===== References & Sizing ===== */
+const wheel = document.getElementById('wheel');
+const wctx  = wheel.getContext('2d');
+const fx    = document.getElementById('fx');
+const fctx  = fx.getContext('2d');
+const lights = document.getElementById('lights');
+const lctx   = lights.getContext('2d');
+const confettiFS = document.getElementById('confetti');
+const cctx       = confettiFS.getContext('2d');
+
+function sizeSquareCanvas(el){
+  const box = el.parentElement.getBoundingClientRect();
+  const size = Math.min(box.width, box.height);
+  const dpr = window.devicePixelRatio || 1;
+  el.width  = Math.floor(size * dpr);
+  el.height = Math.floor(size * dpr);
+  el.style.width = size + 'px';
+  el.style.height= size + 'px';
+  const ctx = el.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function resizeAll(){
+  sizeSquareCanvas(wheel);
+  sizeSquareCanvas(fx);
+  const dpr = window.devicePixelRatio || 1;
+  // lights
+  lights.width  = Math.floor(innerWidth * dpr);
+  lights.height = Math.floor(innerHeight * dpr);
+  lights.style.width = '100vw'; lights.style.height= '100vh';
+  lctx.setTransform(dpr,0,0,dpr,0,0);
+  // full-screen confetti
+  confettiFS.width  = Math.floor(innerWidth * dpr);
+  confettiFS.height = Math.floor(innerHeight * dpr);
+  confettiFS.style.width='100vw'; confettiFS.style.height='100vh';
+  cctx.setTransform(dpr,0,0,dpr,0,0);
+
+  drawWheel(0); drawLights(0);
+}
+new ResizeObserver(resizeAll).observe(wheel.parentElement);
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resizeAll); else resizeAll();
+
+/* ===== UI & State ===== */
+const spinBtn    = document.getElementById('spinBtn');
+const currentEl  = document.getElementById('current');
+const countEl    = document.getElementById('count');
+const gridEl     = document.getElementById('grid');
+const popup      = document.getElementById('popup');
+const popNum     = document.getElementById('popNum');
+const closePop   = document.getElementById('closePop');
+const resetBtn   = document.getElementById('reset');
+const dlXBtn     = document.getElementById('downloadX');
+const musicBtn   = document.getElementById('music');
+
+const rulesBtn   = document.getElementById('rulesBtn');
+const rulesModal = document.getElementById('rulesModal');
+const rulesClose = document.getElementById('rulesClose');
+
+for (let i=1;i<=90;i++){
+  const d=document.createElement('div');
+  d.className='cell'; d.id='n'+i; d.textContent=i;
+  gridEl.appendChild(d);
+}
+const colors=['#9c27b0','#673ab7','#3f51b5','#2196f3','#03a9f4','#00bcd4','#009688','#4caf50','#8bc34a','#cddc39','#ffc107','#ff9800','#ff5722','#f44336','#e91e63'];
+let spinning=false, history=[], remaining=new Set(Array.from({length:90},(_,i)=>i+1));
+
+/* ===== Wheel ===== */
+function drawWheel(angle=0){
+  const w=wheel.width, h=wheel.height, r=Math.min(w,h)/2 - 10, cx=w/2, cy=h/2;
+  wctx.clearRect(0,0,w,h);
+  const segs=15, per=(Math.PI*2)/segs;
+  wctx.save();
+  wctx.translate(cx,cy); wctx.rotate(angle);
+  for(let i=0;i<segs;i++){
+    wctx.beginPath(); wctx.moveTo(0,0);
+    wctx.arc(0,0,r, i*per, (i+1)*per);
+    wctx.closePath(); wctx.fillStyle=colors[i%colors.length]; wctx.globalAlpha=.95; wctx.fill();
+  }
+  // hub
+  wctx.beginPath(); wctx.arc(0,0,r*0.15,0,Math.PI*2); wctx.fillStyle='#ffffff'; wctx.fill();
+  wctx.restore();
+  // pointer
+  wctx.beginPath();
+  wctx.moveTo(cx, cy - r - 5);
+  wctx.lineTo(cx - 15, cy - r - 25);
+  wctx.lineTo(cx + 15, cy - r - 25);
+  wctx.closePath(); wctx.fillStyle='#ffffff'; wctx.strokeStyle='#000'; wctx.lineWidth=2; wctx.fill(); wctx.stroke();
+}
+
+/* ===== Party string lights (6 lines) ===== */
+function drawLights(t){
+  const W = lights.width, H = lights.height;
+  lctx.clearRect(0,0,W,H);
+  lctx.lineWidth = 3; lctx.strokeStyle = 'rgba(255,255,255,.25)';
+
+  const strings = [
+    {y: H/5,    amp: 40, phase: 0   },
+    {y: H/3,    amp: 55, phase: 1   },
+    {y: H/2.2,  amp: 70, phase: 2   },
+    {y: H/1.9,  amp: 60, phase: 2.7 },
+    {y: H/1.6,  amp: 50, phase: 1.6 },
+    {y: H/1.35, amp: 40, phase: 0.8 }
+  ];
+  const bulbSpacing = 80;
+  const palette = ['#ffdd55','#66f7ff','#ff79b0','#a6ff8f','#ffd1ff'];
+
+  strings.forEach((s,i)=>{
+    lctx.beginPath();
+    for(let x=0;x<=W;x+=8){
+      const y = s.y + Math.sin((x/220)+(t/1000)+s.phase)*s.amp;
+      if(x===0) lctx.moveTo(x,y); else lctx.lineTo(x,y);
+    }
+    lctx.stroke();
+
+    for(let x=0;x<=W;x+=bulbSpacing){
+      const y = s.y + Math.sin((x/220)+(t/1000)+s.phase)*s.amp;
+      const c = palette[(x/bulbSpacing + i)%palette.length];
+      const pulse = (Math.sin((t/300)+x/150+i)+1)/2;
+      const r = 5 + pulse*2;
+
+      lctx.save();
+      lctx.globalAlpha = .6 + pulse*.4;
+      lctx.fillStyle = c;
+      lctx.shadowColor = c;
+      lctx.shadowBlur = 16 + pulse*24;
+      lctx.beginPath(); lctx.arc(x,y,r+2,0,Math.PI*2); lctx.fill();
+      lctx.restore();
+
+      lctx.beginPath(); lctx.fillStyle=c; lctx.arc(x,y,r,0,Math.PI*2); lctx.fill();
+    }
+  });
+
+  requestAnimationFrame(drawLights);
+}
+requestAnimationFrame(drawLights);
+
+/* ===== Audio ===== */
+let audioCtx;
+let musicOn = true;
+
+function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+
+/* Wheel clacks */
+function rotorClacks(totalMs){
+  ensureAudio();
+  const start = performance.now();
+  const baseInterval = 45, maxInterval = 240;
+  let next = start;
+
+  function click(freq=1000, ms=18, vol=0.10){
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='square'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(vol, audioCtx.currentTime + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms/1000);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + ms/1000);
+  }
+
+  function tick(now){
+    const t = now - start; if (t > totalMs) return;
+    const p = t/totalMs;
+    const interval = baseInterval + (maxInterval - baseInterval) * (p*p);
+    if (now >= next){
+      click(950,18,0.08); setTimeout(()=>click(1100,14,0.06), 20);
+      next = now + interval;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function ding(){
+  ensureAudio();
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(784, audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(1568, audioCtx.currentTime + 0.25);
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.28, audioCtx.currentTime + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.7);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + 0.7);
+}
+
+/* Background music (current master.gain=0.40 from your last step) */
+let musicNodes=null;
+function startMusic(){
+  if(!musicOn) return;
+  ensureAudio(); stopMusic();
+
+  const master = audioCtx.createGain(); master.gain.value = 0.40;
+  master.connect(audioCtx.destination);
+
+  const drum = audioCtx.createGain(); drum.gain.value = 0.28; drum.connect(master);
+  function kick(time){ const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sine'; o.connect(g).connect(drum);
+    o.frequency.setValueAtTime(120, time);
+    o.frequency.exponentialRampToValueAtTime(50, time+0.08);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.9, time+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+0.18);
+    o.start(time); o.stop(time+0.2);
+  }
+  function snare(time){
+    const n=audioCtx.createBufferSource();
+    const buf=audioCtx.createBuffer(1, audioCtx.sampleRate*0.2, audioCtx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<data.length;i++){ data[i] = (Math.random()*2-1) * Math.pow(1-i/data.length, 2); }
+    n.buffer=buf; const g=audioCtx.createGain(); g.gain.value=0.18; n.connect(g).connect(drum); n.start(time);
+  }
+  function hat(time){
+    const n=audioCtx.createBufferSource();
+    const len = audioCtx.sampleRate*0.05;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++){ d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 1.2); }
+    n.buffer=buf; const g=audioCtx.createGain(); g.gain.value=0.06; n.connect(g).connect(drum); n.start(time);
+  }
+
+  const bassGain = audioCtx.createGain(); bassGain.gain.value=0.22; bassGain.connect(master);
+  function bassNote(note, when, dur=0.25){
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sawtooth'; o.frequency.value = 55 * Math.pow(2, note/12);
+    o.connect(g).connect(bassGain);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.25, when+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+    o.start(when); o.stop(when+dur+0.02);
+  }
+
+  const leadGain = audioCtx.createGain(); leadGain.gain.value=0.12; leadGain.connect(master);
+  function leadNote(noteHz, when, dur=0.18){
+    const o=audioCtx.createOscillator(); o.type='triangle';
+    const g=audioCtx.createGain(); g.gain.value=0.0;
+    o.connect(g).connect(leadGain);
+    o.frequency.value = noteHz;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.12, when+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+    o.start(when); o.stop(when+dur+0.02);
+  }
+  const bpm=108, beat=60/bpm, start=audioCtx.currentTime+0.05;
+  function hz(n){ return 440*Math.pow(2,(n-69)/12); }
+
+  function scheduleBar(barStart){
+    kick(barStart + 0*beat); hat(barStart + 0*beat);
+    snare(barStart + 1*beat); hat(barStart + 1.5*beat);
+    kick(barStart + 2*beat);  hat(barStart + 2.5*beat);
+    snare(barStart + 3*beat); hat(barStart + 3.5*beat);
+    const bassPattern=[0,0,-5,-5,2,2,0,0];
+    bassPattern.forEach((st,i)=>bassNote(st, barStart + i*0.5*beat, 0.25));
+    const notes=[81,83,86,83,81,78,79,81];
+    notes.forEach((n,i)=>leadNote(hz(n), barStart + i*0.5*beat + 0.05, 0.16));
+  }
+  const barDur=4*beat;
+  let barStart=start; scheduleBar(barStart);
+  const interval=setInterval(()=>{barStart+=barDur; scheduleBar(barStart);}, barDur*1000);
+  musicNodes={master, interval};
+}
+function stopMusic(){ if(!musicNodes) return; clearInterval(musicNodes.interval); musicNodes=null; }
+
+/* Speech (female if available) */
+let femaleVoice=null;
+function pickFemaleVoice(){
+  const voices = speechSynthesis.getVoices();
+  if (!voices || !voices.length) return;
+  const prefs=['Female','Samantha','Victoria','Zira','Aria','Jenny','Google UK English Female','Google US English'];
+  femaleVoice = voices.find(v=>prefs.some(p=>v.name.includes(p))) || voices[0];
+}
+speechSynthesis.onvoiceschanged = pickFemaleVoice; pickFemaleVoice();
+function speakNumber(n){ try{ const u=new SpeechSynthesisUtterance(String(n)); if(femaleVoice) u.voice=femaleVoice; u.rate=.98; u.pitch=1.05; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
+
+/* ===== Full-screen confetti (bursts OUTWARD) ===== */
+function burstConfettiFrom(x,y){
+  const W = confettiFS.width, H = confettiFS.height;
+  const parts=[]; const count=260;
+  for(let i=0;i<count;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = 3 + Math.random()*7;
+    parts.push({
+      x:x, y:y,
+      vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - 2,
+      g: 0.10 + Math.random()*0.10,
+      r: 2 + Math.random()*3,
+      c: colors[i%colors.length],
+      a: 1
+    });
+  }
+  const start=performance.now();
+  (function anim(now){
+    const t=now-start;
+    cctx.clearRect(0,0,W,H);
+    parts.forEach(p=>{
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.a *= 0.985;
+      cctx.globalAlpha = Math.max(0,p.a); cctx.fillStyle=p.c;
+      cctx.beginPath(); cctx.arc(p.x,p.y,p.r,0,Math.PI*2); cctx.fill();
+    });
+    if(t<1800) requestAnimationFrame(anim);
+    else cctx.clearRect(0,0,W,H);
+  })(start);
+}
+
+/* ===== Spin ===== */
+function easeOutCubic(x){ return 1 - Math.pow(1-x,3); }
+
+function spin(){
+  if(spinning) return;
+  if(remaining.size===0){ alert('All 90 numbers have been drawn!'); return; }
+  spinning=true; spinBtn.disabled=true;
+
+  const duration = 2000 + Math.random()*600;
+  const start = performance.now();
+  const startAngle = Math.random()*Math.PI*2;
+  const rotations = 5 + Math.random()*2;
+
+  rotorClacks(duration);
+
+  // neon glow color matches a random slice
+  const neonColor = colors[Math.floor(Math.random()*colors.length)];
+  document.documentElement.style.setProperty('--neon', neonColor);
+
+  (function frame(now){
+    const p = Math.min(1,(now-start)/duration);
+    const ang = startAngle + easeOutCubic(p)*rotations*Math.PI*2;
+    drawWheel(ang);
+    if (p < 1){ requestAnimationFrame(frame); }
+    else{
+      const arr = Array.from(remaining);
+      const pick = arr[Math.floor(Math.random()*arr.length)];
+      remaining.delete(pick); history.push(pick);
+      document.getElementById('n'+pick)?.classList.add('on');
+      currentEl.textContent = pick; countEl.textContent = history.length;
+      popNum.textContent = pick; popup.style.display='flex';
+
+      ding(); speakNumber(pick);
+
+      // burst from popup center to full screen
+      const numRect = document.getElementById('popNum').getBoundingClientRect();
+      const centerX = numRect.left + numRect.width/2;
+      const centerY = numRect.top  + numRect.height/2;
+      const dpr = window.devicePixelRatio || 1;
+      burstConfettiFrom(centerX * dpr, centerY * dpr);
+
+      spinning=false; spinBtn.disabled=false;
+    }
+  })(start);
+}
+
+/* ===== Excel ===== */
+function downloadExcel(){
+  if(!history.length){ alert('No numbers drawn yet.'); return; }
+  if (window.XLSX){
+    const wb = XLSX.utils.book_new();
+    const data = history.map((n,i)=>({Number:n, Position:i+1}));
+    const ws = XLSX.utils.json_to_sheet(data, {header:["Number","Position"]});
+    XLSX.utils.book_append_sheet(wb, ws, "Tambola");
+    XLSX.writeFile(wb, "tambola_numbers.xlsx");
+  } else {
+    const rows=['Number,Position']; history.forEach((n,i)=>rows.push(`${n},${i+1}`));
+    const blob=new Blob([rows.join('\n')], {type:'text/csv'});
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='tambola_numbers.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+}
+
+/* ===== Controls ===== */
+spinBtn.addEventListener('click', ()=>{ ensureAudio(); if(musicOn && !musicNodes) startMusic(); spin(); }, {passive:true});
+document.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); spinBtn.click(); } });
+closePop.addEventListener('click', ()=> popup.style.display='none');
+resetBtn.addEventListener('click', ()=>{
+  if(!confirm('Reset all picks?')) return;
+  history=[]; remaining=new Set(Array.from({length:90},(_,i)=>i+1));
+  for(let n=1;n<=90;n++){ document.getElementById('n'+n).classList.remove('on'); }
+  currentEl.textContent='–'; countEl.textContent='0';
+  drawWheel(0); cctx.clearRect(0,0,confettiFS.width,confettiFS.height);
+});
+dlXBtn.addEventListener('click', downloadExcel);
+
+musicBtn.addEventListener('click', ()=>{
+  musicOn = !musicOn;
+  musicBtn.textContent = 'Music: ' + (musicOn ? 'On' : 'Off');
+  if (musicOn){ ensureAudio(); startMusic(); } else { stopMusic(); }
+});
+document.addEventListener('click', function initOnce(){
+  ensureAudio();
+  if (musicOn && !musicNodes) startMusic();
+  document.removeEventListener('click', initOnce);
+}, {once:true});
+
+/* Rules modal handlers */
+rulesBtn.addEventListener('click', ()=> rulesModal.style.display='flex');
+rulesClose.addEventListener('click', ()=> rulesModal.style.display='none');
+rulesModal.addEventListener('click', (e)=>{ if(e.target===rulesModal) rulesModal.style.display='none'; });
+</script>
+</body>
+</html>
