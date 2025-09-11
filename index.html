@@ -50,7 +50,7 @@
   .wheelBox{
     position:relative;
     display:grid; place-items:center;        /* centers canvases + button */
-    width:min(88vmin, 92vw);
+    width:min(88vmin, 92vw);                 /* JS will override width/height inline for auto-fit */
     aspect-ratio:1 / 1;                      /* square box at any size */
     flex:0 0 auto;
   }
@@ -132,14 +132,14 @@
   <canvas id="lights"></canvas>
   <canvas id="confetti"></canvas>
 
-  <div class="wrap">
-    <div class="wheelBox">
+  <div class="wrap" id="wrap">
+    <div class="wheelBox" id="wheelBox">
       <canvas id="wheel" width="800" height="800"></canvas>
       <canvas id="fx" width="800" height="800"></canvas>
       <button id="spinBtn">SPIN</button>
     </div>
 
-    <div class="side">
+    <div class="side" id="side">
       <div class="panel centered">
         <div class="muted">Current Pick</div>
         <span id="current" class="big">–</span>
@@ -212,6 +212,43 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 
 <script>
+/* ===== Auto-fit wheel to any screen (no manual zoom needed) ===== */
+const wrap = document.getElementById('wrap');
+const wheelBox = document.getElementById('wheelBox');
+const side = document.getElementById('side');
+
+function computeWheelSize(){
+  const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+  const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+
+  // Detect stacked layout (CSS switches to column at <= 900px)
+  const stacked = vw <= 900;
+
+  // Measure side panel when visible
+  const sideRect = side.getBoundingClientRect();
+  const sideW = stacked ? 0 : Math.min(sideRect.width || 420, 480);
+
+  // Safe paddings / header space
+  const hPad = 60; // overall horizontal padding/margins
+  const vPad = 140; // room for title + margins
+
+  let maxW, maxH;
+  if (stacked){
+    maxW = vw - 24;            // screen width minus padding
+    maxH = (vh - vPad) * 0.58; // leave room for panels below
+  } else {
+    maxW = vw - sideW - hPad;  // remaining width after side panel
+    maxH = vh - vPad;          // vertical room
+  }
+
+  let size = Math.min(maxW, maxH);
+  size = Math.max(320, Math.min(820, Math.floor(size))); // clamp
+
+  // Apply explicit pixel size so we’re independent of user zoom % and vmin quirks
+  wheelBox.style.width  = size + 'px';
+  wheelBox.style.height = size + 'px';
+}
+
 /* ===== Canvas sizing (DPI aware, pixel-perfect) ===== */
 const wheel = document.getElementById('wheel');
 const wctx  = wheel.getContext('2d');
@@ -252,15 +289,16 @@ function resizeAll(){
   drawWheel(0); drawLights(0);
 }
 
-// Run now, on next frame (for layout settle), on resize, and on observer
+// Run sizing in the right order to avoid “oval on first paint”
 function initSizing(){
+  computeWheelSize();
   resizeAll();
-  requestAnimationFrame(resizeAll); // handle zoom/layout timing on some PCs
+  requestAnimationFrame(()=>{ computeWheelSize(); resizeAll(); }); // handle late layout/zoom
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSizing); else initSizing();
 
-new ResizeObserver(resizeAll).observe(document.querySelector('.wheelBox'));
-window.addEventListener('resize', ()=>{ clearTimeout(window.__wheelResizeT); window.__wheelResizeT = setTimeout(resizeAll, 120); });
+new ResizeObserver(()=>{ computeWheelSize(); resizeAll(); }).observe(document.body);
+window.addEventListener('resize', ()=>{ clearTimeout(window.__wheelResizeT); window.__wheelResizeT = setTimeout(()=>{ computeWheelSize(); resizeAll(); }, 120); });
 
 /* ===== UI & State ===== */
 const spinBtn    = document.getElementById('spinBtn');
