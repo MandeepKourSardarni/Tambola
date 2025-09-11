@@ -1,4 +1,4 @@
-Start Playing.. click--> https://mandeepkoursardarni.github.io/Tambola/
+LIVE DEMO -->   [Play Here](https://mandeepkoursardarni.github.io/Tambola/)
 
 ######################
 🎉 Tambola Spinner 🎉
@@ -25,7 +25,7 @@ Projector-friendly Tambola / Indian Housie spinner.
 
 ## Preview
 
-![Tambola Screenshot](assets/tambola.png)
+![Tambola Screenshot](Tambola.png)
 
 
 
