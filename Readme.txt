@@ -1,3 +1,7 @@
+Start Playing.. click--> https://mandeepkoursardarni.github.io/Tambola/
+
+
+
 # Tambola Spinner 🎉
 
 Projector-friendly Tambola / Indian Housie spinner.
