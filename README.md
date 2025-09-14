@@ -1,4 +1,4 @@
-LIVE DEMO -->   [Play Here](https://mandeepkoursardarni.github.io/Tambola/)               [Ticket](https://mandeepkoursardarni.github.io/Tambola/tickets/)
+LIVE DEMO -->   [Play Here](https://mandeepkoursardarni.github.io/Tambola/)    ----------   [Ticket](https://mandeepkoursardarni.github.io/Tambola/tickets/)
 
 ## 🎮 Play Tambola (Caller)
 https://mandeepkoursardarni.github.io/Tambola/
