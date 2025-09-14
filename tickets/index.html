@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Tambola Ticket — Minimal</title>
+<title>Tambola Ticket — New Each Visit</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -89,7 +89,7 @@
       <button id="rulesBtn" class="pill">📜 Rules</button>
     </div>
   </header>
-  <div class="note">Tap / click numbers to mark. Undo reverts your last mark/unmark.</div>
+  <div class="note">Each visit loads a <b>new</b> ticket. Tap numbers to mark. Undo reverts your last mark/unmark.</div>
 
   <section id="ticketWrap">
     <canvas id="ticketLights" aria-hidden="true"></canvas>
@@ -106,13 +106,13 @@
     <ul>
       <li>Each ticket has 3 rows × 9 columns, with 15 numbers total (5 per row).</li>
       <li>Caller announces numbers 1–90. Mark numbers that appear on your ticket.</li>
-      <li><b>Achievements (auto-detected on your ticket):</b>
+      <li><b>Achievements (auto-detected):</b>
         <ul>
           <li><b>Early Five</b>: Any 5 numbers marked.</li>
           <li><b>Top Line</b>: All 5 numbers in the top row marked.</li>
           <li><b>Middle Line</b>: All 5 numbers in the middle row marked.</li>
           <li><b>Bottom Line</b>: All 5 numbers in the bottom row marked.</li>
-          <li><b>Four Corners</b>: Numbers at all four corners marked (only if the corners contain numbers).</li>
+          <li><b>Four Corners</b>: All four corner numbers (only if corners have numbers).</li>
           <li><b>Full House</b>: All 15 numbers marked.</li>
         </ul>
       </li>
@@ -230,7 +230,7 @@ function randSeed(){
     crypto.getRandomValues(a);
     return Array.from(a).map(x=>x.toString(16).padStart(8,'0')).join('');
   }catch(e){
-    return (Date.now().toString(16) + Math.random().toString(16).slice(2) + navigator.userAgent.length.toString(16)).slice(0,32);
+    return (Date.now().toString(16) + Math.random().toString(16).slice(2)).slice(0,32);
   }
 }
 function xmur3(str){
@@ -256,34 +256,6 @@ function mulberry32(a){
 }
 function rngFromSeed(seedStr){ return mulberry32(xmur3(seedStr)()); }
 function randInt(rng, min, max){ return Math.floor(rng()*(max-min+1))+min; }
-function uuid4(){
-  try{
-    return URL.createObjectURL(new Blob()).slice(-36);
-  }catch(e){
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c ^ (Math.random()*256|0) & 15 >> c/4).toString(16));
-  }
-}
-
-/* ========= Unique-per-device seed derivation ========= */
-function ensureDeviceId(){
-  let id = localStorage.getItem('tb_deviceId');
-  if(!id){ id = uuid4(); localStorage.setItem('tb_deviceId', id); }
-  return id;
-}
-function ensureDeviceNonce(){
-  let n = localStorage.getItem('tb_deviceNonce');
-  if(!n){ n = randSeed(); localStorage.setItem('tb_deviceNonce', n); }
-  return n;
-}
-function initialDeviceSeed(){
-  const id = ensureDeviceId();
-  const nonce = ensureDeviceNonce();
-  const ua = navigator.userAgent || '';
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  const raw = id + '|' + nonce + '|' + ua.length + '|' + tz;
-  const h = xmur3(raw)();
-  return (h.toString(16).padStart(8,'0') + randSeed().slice(8,32));
-}
 
 /* ========= Tambola Generator (3x9, 15 nums, 5 per row) ========= */
 const COL_RANGES = [[1,9],[10,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,79],[80,90]];
@@ -296,8 +268,10 @@ function shuffleInPlace(arr, rng){
 function generateTicket(seedStr, maxTries=500){
   for(let attempt=0; attempt<maxTries; attempt++){
     const rng = rngFromSeed(seedStr + "#"+attempt);
+    // column counts 1..3 totaling 15
     const colCounts = new Array(9).fill(1); let extra=6;
     while(extra>0){ const c=randInt(rng,0,8); if(colCounts[c]<3){ colCounts[c]++; extra--; } }
+    // assign rows so each row gets 5
     const rowCounts=[0,0,0], rowsForCol=Array.from({length:9},()=>[]);
     let ok=true;
     for(let c=0;c<9;c++){
@@ -314,6 +288,7 @@ function generateTicket(seedStr, maxTries=500){
     }
     if(!ok || rowCounts.some(v=>v!==5)) continue;
 
+    // numbers per column
     const columnNumbers=[];
     for(let c=0;c<9;c++){
       const [lo,hi]=COL_RANGES[c];
@@ -321,6 +296,7 @@ function generateTicket(seedStr, maxTries=500){
       shuffleInPlace(pool, rng);
       columnNumbers[c]=pool.slice(0,colCounts[c]).sort((a,b)=>a-b);
     }
+    // build grid
     const grid=Array.from({length:3},()=> new Array(9).fill(null));
     for(let c=0;c<9;c++){
       const rows=rowsForCol[c].slice().sort((a,b)=>a-b);
@@ -367,11 +343,11 @@ function renderTicket(grid){
       gridEl.appendChild(cell);
     }
   }
+  // four corners if all are numbers
   const corners = [0,8,18,26];
   const cells = Array.from(gridEl.children);
   const allHaveNums = corners.every(i => !cells[i].classList.contains('empty'));
   cornerIdxs = allHaveNums ? corners : [];
-  restoreMarks();
   achieved.clear();
 }
 
@@ -385,7 +361,6 @@ function toggleCell(index){
   const wasMarked = cell.classList.contains('marked');
   undoStack.push({index, wasMarked});
   cell.classList.toggle('marked');
-  persistMarks();
   checkAchievements();
 }
 
@@ -396,26 +371,6 @@ function undo(){
   const cell = cells[last.index];
   if(!cell || cell.classList.contains('empty')) return;
   cell.classList.toggle('marked', last.wasMarked);
-  persistMarks();
-}
-
-/* === Persistence === */
-function persistMarks(){
-  const key = 'marks:'+ticketSeed;
-  const cells = getCells();
-  const marks = [];
-  cells.forEach((cell,i)=>{ if(cell.classList.contains('marked')) marks.push(i); });
-  localStorage.setItem(key, JSON.stringify(marks));
-}
-function restoreMarks(){
-  const key = 'marks:'+ticketSeed;
-  const raw = localStorage.getItem(key);
-  if(!raw) return;
-  try{
-    const marks = JSON.parse(raw);
-    const cells = getCells();
-    marks.forEach(i=>{ if(cells[i] && !cells[i].classList.contains('empty')) cells[i].classList.add('marked'); });
-  }catch(e){}
 }
 
 /* === Achievements detection === */
@@ -454,30 +409,21 @@ rulesBtn.addEventListener('click', ()=> { ensureAudio(); rulesModal.style.displa
 rulesClose.addEventListener('click', ()=> rulesModal.style.display='none');
 rulesModal.addEventListener('click', (e)=>{ if(e.target===rulesModal) rulesModal.style.display='none'; });
 
-/* === Build ticket (unique per device on first load) === */
-function ensureDeviceId(){ let id = localStorage.getItem('tb_deviceId'); if(!id){ id = uuid4(); localStorage.setItem('tb_deviceId', id); } return id; }
-function ensureDeviceNonce(){ let n = localStorage.getItem('tb_deviceNonce'); if(!n){ n = randSeed(); localStorage.setItem('tb_deviceNonce', n); } return n; }
-function initialDeviceSeed(){
-  const id = ensureDeviceId(); const nonce = ensureDeviceNonce();
-  const raw = id + '|' + nonce + '|' + (navigator.userAgent||'').length + '|' + (Intl.DateTimeFormat().resolvedOptions().timeZone||'');
-  const h = xmur3(raw)();
-  return (h.toString(16).padStart(8,'0') + randSeed().slice(8,32));
-}
-
+/* === Build a brand-new ticket on every visit ===
+   We intentionally DO NOT store or reuse any prior seed.
+   Optional: support ?round=2 etc. (ignored for now—every load is fresh).
+*/
 function buildTicket(seed){
   ticketSeed = seed;
-  localStorage.setItem('lastTicketSeed', ticketSeed);
   undoStack = [];
   gridData = generateTicket(ticketSeed);
   renderTicket(gridData);
 }
 
+// Always fresh: new seed on page load (also gives new ticket on reload)
 (function init(){
-  const saved = localStorage.getItem('lastTicketSeed');
-  if(saved){ buildTicket(saved); } else { buildTicket(initialDeviceSeed()); }
+  buildTicket(randSeed());
 })();
-
-/* === Controls === */
 undoBtn.addEventListener('click', undo);
 </script>
 </body>
