@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tambola Ticket — Minimal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0e1222; --panel:#1a2040; --panel2:#242b58; --ink:#ffffff; --accent:#ffd400;
+    --cell:#121633; --cellOdd:#171c3f; --grid:#445; --mark:#2fd17a; --glass: rgba(255,255,255,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 50% -250px, rgba(140,80,255,.18), transparent),
+      linear-gradient(135deg,#0d1024 0%, #2a3570 35%, #293a8f 65%, #6a39b8 100%);
+    -webkit-tap-highlight-color:transparent; overflow-x:hidden;
+  }
+
+  /* Pastel carnival lights around the viewport */
+  #edgeLights{position:fixed; inset:0; pointer-events:none; z-index:0}
+
+  .wrap{position:relative; z-index:1; max-width:920px; margin:0 auto; padding:16px; display:grid; gap:12px}
+  header{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+  h1{margin:0; font-size:clamp(18px,4.5vmin,28px); color:var(--accent); text-shadow:0 1px 0 #000, 0 0 14px rgba(255,212,0,.35)}
+  .controls{display:flex; gap:8px; flex-wrap:wrap}
+  .pill{
+    background:linear-gradient(180deg, var(--panel), var(--panel2));
+    color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:999px;
+    padding:8px 14px; font-weight:800; cursor:pointer;
+  }
+  .pill:active{transform:translateY(1px)}
+
+  /* Ticket + inner lights */
+  #ticketWrap{position:relative}
+  #ticketCard{
+    background:var(--glass); border:1px solid rgba(255,255,255,.25); border-radius:16px;
+    padding:12px; box-shadow:0 12px 40px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  #ticketLights{position:absolute; inset:-10px; pointer-events:none; z-index:0}
+
+  .grid{position:relative; z-index:1; display:grid; grid-template-columns:repeat(9,1fr); gap:6px}
+  .cell{
+    aspect-ratio: 1.2 / 1;
+    background:var(--cell); border:1px solid var(--grid); border-radius:10px;
+    display:grid; place-items:center; font-weight:900; font-size:clamp(18px,4.8vmin,26px);
+    user-select:none; -webkit-user-select:none;
+    transition:transform .06s ease, background .2s ease, color .2s ease, border-color .2s ease;
+    outline:none;
+  }
+  .cell:nth-child(odd){ background:var(--cellOdd) }
+  .cell.empty{background:transparent; border:1px dashed rgba(255,255,255,.18)}
+  .cell.marked{background:linear-gradient(180deg, rgba(47,209,122,.12), rgba(47,209,122,.08)); color:var(--mark); border-color:rgba(47,209,122,.45)}
+
+  .note{opacity:.85; font-size:14px}
+
+  /* Rules modal */
+  #rulesModal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:9}
+  .modal-card{
+    width:min(720px,92vw); max-height:82vh; overflow:auto;
+    background:linear-gradient(135deg,rgba(60,60,90,.95),rgba(30,30,55,.95));
+    border-radius:16px; border:1px solid rgba(255,255,255,.25); padding:18px 20px;
+    box-shadow:0 20px 50px rgba(0,0,0,.55)
+  }
+  .modal-card h3{margin-top:0}
+  .modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:12px}
+
+  /* Toasts (achievement popups) */
+  #toastBox{position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10; display:grid; gap:8px}
+  .toast{
+    background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); color:#fff;
+    padding:10px 14px; border-radius:12px; font-weight:800; text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.35); opacity:0; transform:translateY(-8px); transition:.25s ease;
+    backdrop-filter: blur(6px);
+  }
+  .toast.show{opacity:1; transform:translateY(0)}
+</style>
+</head>
+<body>
+<canvas id="edgeLights" aria-hidden="true"></canvas>
+
+<div class="wrap">
+  <header>
+    <h1>Tambola Ticket</h1>
+    <div class="controls">
+      <button id="undoBtn" class="pill">↩️ Undo</button>
+      <button id="rulesBtn" class="pill">📜 Rules</button>
+    </div>
+  </header>
+  <div class="note">Tap / click numbers to mark. Undo reverts your last mark/unmark.</div>
+
+  <section id="ticketWrap">
+    <canvas id="ticketLights" aria-hidden="true"></canvas>
+    <div id="ticketCard" aria-live="polite">
+      <div id="grid" class="grid"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Rules modal -->
+<div id="rulesModal">
+  <div class="modal-card">
+    <h3>Tambola — Basic Rules & Achievements</h3>
+    <ul>
+      <li>Each ticket has 3 rows × 9 columns, with 15 numbers total (5 per row).</li>
+      <li>Caller announces numbers 1–90. Mark numbers that appear on your ticket.</li>
+      <li><b>Achievements (auto-detected on your ticket):</b>
+        <ul>
+          <li><b>Early Five</b>: Any 5 numbers marked.</li>
+          <li><b>Top Line</b>: All 5 numbers in the top row marked.</li>
+          <li><b>Middle Line</b>: All 5 numbers in the middle row marked.</li>
+          <li><b>Bottom Line</b>: All 5 numbers in the bottom row marked.</li>
+          <li><b>Four Corners</b>: Numbers at all four corners marked (only if the corners contain numbers).</li>
+          <li><b>Full House</b>: All 15 numbers marked.</li>
+        </ul>
+      </li>
+      <li>Claim responsibly: house rules decide winner order & verification.</li>
+    </ul>
+    <div class="modal-actions">
+      <button id="rulesClose" class="pill">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Achievement toasts -->
+<div id="toastBox" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+/* ========= Pastel carnival lights around the viewport ========= */
+(function(){
+  const cvs = document.getElementById('edgeLights'); const ctx = cvs.getContext('2d');
+  const colors = ['#ffd6e7','#d6f4ff','#e7ffd6','#fff0d6','#e8d6ff']; // pastels
+  function draw(t=0){
+    const dpr = devicePixelRatio || 1;
+    cvs.width = innerWidth*dpr; cvs.height = innerHeight*dpr;
+    cvs.style.width='100vw'; cvs.style.height='100vh';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    const s = 34; let i=0;
+    const pulse = i => (Math.sin(t/500 + i*0.7)*0.5+0.5);
+    function dot(x,y,i){
+      const r = 3 + pulse(i)*2;
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = colors[i%colors.length];
+      ctx.shadowColor = colors[i%colors.length];
+      ctx.shadowBlur = 8 + pulse(i)*10;
+      ctx.beginPath(); ctx.arc(x,y,r+1.5,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle = colors[i%colors.length]; ctx.fill();
+    }
+    for(let x=10;x<innerWidth-10;x+=s) dot(x,10,i++);
+    for(let x=10;x<innerWidth-10;x+=s) dot(x,innerHeight-10,i++);
+    for(let y=10;y<innerHeight-10;y+=s) dot(10,y,i++);
+    for(let y=10;y<innerHeight-10;y+=s) dot(innerWidth-10,y,i++);
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+
+/* ========= Pastel lights around the ticket border ========= */
+(function(){
+  const cvs = document.getElementById('ticketLights'); const ctx = cvs.getContext('2d');
+  const host = document.getElementById('ticketWrap');
+  const colors = ['#ffd6e7','#d6f4ff','#e7ffd6','#fff0d6','#e8d6ff'];
+  function render(t=0){
+    const dpr = devicePixelRatio || 1;
+    const r = host.getBoundingClientRect();
+    const w = Math.ceil(r.width)+20, h = Math.ceil(r.height)+20;
+    cvs.width = w*dpr; cvs.height = h*dpr;
+    cvs.style.width = w+'px'; cvs.style.height = h+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    const s = 28; let i=0;
+    const pulse = i => (Math.sin(t/500 + i*0.7)*0.5+0.5);
+    function dot(x,y,i){
+      const rr = 2.5 + pulse(i)*1.6;
+      ctx.save(); ctx.globalAlpha=.9;
+      ctx.fillStyle = colors[i%colors.length];
+      ctx.shadowColor = colors[i%colors.length];
+      ctx.shadowBlur = 6 + pulse(i)*8;
+      ctx.beginPath(); ctx.arc(x,y,rr+1.3,0,Math.PI*2); ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.fillStyle = colors[i%colors.length]; ctx.fill();
+    }
+    const pad = 10;
+    const W = w-2*pad, H = h-2*pad;
+    for(let x=pad+8;x<pad+W-8;x+=s) dot(x,pad+8,i++);
+    for(let x=pad+8;x<pad+W-8;x+=s) dot(x,pad+H-8,i++);
+    for(let y=pad+8;y<pad+H-8;y+=s) dot(pad+8,y,i++);
+    for(let y=pad+8;y<pad+H-8;y+=s) dot(pad+W-8,y,i++);
+    requestAnimationFrame(render);
+  }
+  const obs = new ResizeObserver(()=>render());
+  obs.observe(host);
+  requestAnimationFrame(render);
+})();
+
+/* ========= Audio (soft chime for achievements) ========= */
+let audioCtx = null;
+function ensureAudio(){
+  if(!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(AC) audioCtx = new AC();
+  }
+}
+function softChime(){
+  if(!audioCtx) return;
+  const t0 = audioCtx.currentTime + 0.02;
+  const master = audioCtx.createGain(); master.gain.value = 0.12; master.connect(audioCtx.destination);
+  function tone(freq, when, dur=0.18, gain=0.4){
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(gain, when+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when+dur);
+    o.connect(g).connect(master);
+    o.start(when); o.stop(when+dur+0.02);
+  }
+  tone(1046.5, t0, 0.16, 0.35);     // C6
+  tone(1318.5, t0+0.06, 0.16, 0.32); // E6
+  tone(1568.0, t0+0.12, 0.18, 0.30); // G6
+}
+
+/* ========= RNG & Helpers ========= */
+function randSeed(){
+  try{
+    const a = new Uint32Array(4);
+    crypto.getRandomValues(a);
+    return Array.from(a).map(x=>x.toString(16).padStart(8,'0')).join('');
+  }catch(e){
+    return (Date.now().toString(16) + Math.random().toString(16).slice(2) + navigator.userAgent.length.toString(16)).slice(0,32);
+  }
+}
+function xmur3(str){
+  let h = 1779033703 ^ str.length;
+  for(let i=0;i<str.length;i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h<<13) | (h>>>19);
+  }
+  return function(){
+    h = Math.imul(h ^ (h>>>16), 2246822507);
+    h = Math.imul(h ^ (h>>>13), 3266489909);
+    h ^= h>>>16;
+    return h>>>0;
+  }
+}
+function mulberry32(a){
+  return function(){
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t>>>15), t | 1);
+    t ^= t + Math.imul(t ^ (t>>>7), t | 61);
+    return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+  }
+}
+function rngFromSeed(seedStr){ return mulberry32(xmur3(seedStr)()); }
+function randInt(rng, min, max){ return Math.floor(rng()*(max-min+1))+min; }
+function uuid4(){
+  try{
+    return URL.createObjectURL(new Blob()).slice(-36);
+  }catch(e){
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c ^ (Math.random()*256|0) & 15 >> c/4).toString(16));
+  }
+}
+
+/* ========= Unique-per-device seed derivation ========= */
+function ensureDeviceId(){
+  let id = localStorage.getItem('tb_deviceId');
+  if(!id){ id = uuid4(); localStorage.setItem('tb_deviceId', id); }
+  return id;
+}
+function ensureDeviceNonce(){
+  let n = localStorage.getItem('tb_deviceNonce');
+  if(!n){ n = randSeed(); localStorage.setItem('tb_deviceNonce', n); }
+  return n;
+}
+function initialDeviceSeed(){
+  const id = ensureDeviceId();
+  const nonce = ensureDeviceNonce();
+  const ua = navigator.userAgent || '';
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const raw = id + '|' + nonce + '|' + ua.length + '|' + tz;
+  const h = xmur3(raw)();
+  return (h.toString(16).padStart(8,'0') + randSeed().slice(8,32));
+}
+
+/* ========= Tambola Generator (3x9, 15 nums, 5 per row) ========= */
+const COL_RANGES = [[1,9],[10,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,79],[80,90]];
+function shuffleInPlace(arr, rng){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(rng()*(i+1)); [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+function generateTicket(seedStr, maxTries=500){
+  for(let attempt=0; attempt<maxTries; attempt++){
+    const rng = rngFromSeed(seedStr + "#"+attempt);
+    const colCounts = new Array(9).fill(1); let extra=6;
+    while(extra>0){ const c=randInt(rng,0,8); if(colCounts[c]<3){ colCounts[c]++; extra--; } }
+    const rowCounts=[0,0,0], rowsForCol=Array.from({length:9},()=>[]);
+    let ok=true;
+    for(let c=0;c<9;c++){
+      const k=colCounts[c];
+      const candidates=[0,1,2].sort((a,b)=> rowCounts[a]-rowCounts[b] || (rng()-.5));
+      const chosen=[];
+      for(let i=0;i<k;i++){
+        let placed=false;
+        for(const r of candidates){ if(rowCounts[r]<5 && !chosen.includes(r)){ chosen.push(r); rowCounts[r]++; placed=true; break; } }
+        if(!placed){ ok=false; break; }
+      }
+      if(!ok) break;
+      rowsForCol[c]=chosen;
+    }
+    if(!ok || rowCounts.some(v=>v!==5)) continue;
+
+    const columnNumbers=[];
+    for(let c=0;c<9;c++){
+      const [lo,hi]=COL_RANGES[c];
+      const pool=[]; for(let v=lo;v<=hi;v++) pool.push(v);
+      shuffleInPlace(pool, rng);
+      columnNumbers[c]=pool.slice(0,colCounts[c]).sort((a,b)=>a-b);
+    }
+    const grid=Array.from({length:3},()=> new Array(9).fill(null));
+    for(let c=0;c<9;c++){
+      const rows=rowsForCol[c].slice().sort((a,b)=>a-b);
+      const nums=columnNumbers[c];
+      for(let i=0;i<rows.length;i++){ grid[rows[i]][c]=nums[i]; }
+    }
+    return grid;
+  }
+  throw new Error("Could not generate a valid ticket.");
+}
+
+/* ========= UI, state, achievements ========= */
+const gridEl = document.getElementById('grid');
+const undoBtn = document.getElementById('undoBtn');
+const rulesBtn = document.getElementById('rulesBtn');
+const rulesModal = document.getElementById('rulesModal');
+const rulesClose = document.getElementById('rulesClose');
+const toastBox = document.getElementById('toastBox');
+
+let ticketSeed = null;
+let gridData = null;
+let idxByRow = [[],[],[]];
+let cornerIdxs = [];
+let undoStack = [];
+let achieved = new Set();
+
+function renderTicket(grid){
+  gridEl.innerHTML = '';
+  idxByRow = [[],[],[]];
+  cornerIdxs = [];
+  for(let r=0;r<3;r++){
+    for(let c=0;c<9;c++){
+      const val = grid[r][c];
+      const cell = document.createElement('div');
+      cell.className = 'cell'+(val==null?' empty':'');
+      cell.tabIndex = val==null ? -1 : 0;
+      if(val!=null){
+        cell.textContent = String(val);
+        idxByRow[r].push(r*9+c);
+      }
+      const idx = r*9 + c;
+      cell.addEventListener('click', ()=> { ensureAudio(); toggleCell(idx); });
+      cell.addEventListener('keydown', (e)=>{ if((e.code==='Space'||e.key==='Enter') && val!=null){ e.preventDefault(); ensureAudio(); toggleCell(idx);} });
+      gridEl.appendChild(cell);
+    }
+  }
+  const corners = [0,8,18,26];
+  const cells = Array.from(gridEl.children);
+  const allHaveNums = corners.every(i => !cells[i].classList.contains('empty'));
+  cornerIdxs = allHaveNums ? corners : [];
+  restoreMarks();
+  achieved.clear();
+}
+
+function getCells(){ return Array.from(gridEl.children); }
+
+function toggleCell(index){
+  const cells = getCells();
+  const cell = cells[index];
+  if(!cell || cell.classList.contains('empty')) return;
+
+  const wasMarked = cell.classList.contains('marked');
+  undoStack.push({index, wasMarked});
+  cell.classList.toggle('marked');
+  persistMarks();
+  checkAchievements();
+}
+
+function undo(){
+  const last = undoStack.pop();
+  if(!last) return;
+  const cells = getCells();
+  const cell = cells[last.index];
+  if(!cell || cell.classList.contains('empty')) return;
+  cell.classList.toggle('marked', last.wasMarked);
+  persistMarks();
+}
+
+/* === Persistence === */
+function persistMarks(){
+  const key = 'marks:'+ticketSeed;
+  const cells = getCells();
+  const marks = [];
+  cells.forEach((cell,i)=>{ if(cell.classList.contains('marked')) marks.push(i); });
+  localStorage.setItem(key, JSON.stringify(marks));
+}
+function restoreMarks(){
+  const key = 'marks:'+ticketSeed;
+  const raw = localStorage.getItem(key);
+  if(!raw) return;
+  try{
+    const marks = JSON.parse(raw);
+    const cells = getCells();
+    marks.forEach(i=>{ if(cells[i] && !cells[i].classList.contains('empty')) cells[i].classList.add('marked'); });
+  }catch(e){}
+}
+
+/* === Achievements detection === */
+function countMarked(idxList){
+  const cells = getCells();
+  let n=0;
+  idxList.forEach(i => { if(cells[i] && cells[i].classList.contains('marked')) n++; });
+  return n;
+}
+function showToast(text){
+  const t = document.createElement('div'); t.className='toast'; t.textContent = text;
+  toastBox.appendChild(t);
+  requestAnimationFrame(()=> t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(), 250); }, 3600);
+}
+function triggerAchievement(name, emoji){
+  if(achieved.has(name)) return;
+  achieved.add(name);
+  showToast(`${emoji} ${name}!`);
+  softChime();
+}
+function checkAchievements(){
+  const allNumberIdx = [...idxByRow[0], ...idxByRow[1], ...idxByRow[2]];
+  const totalMarked = countMarked(allNumberIdx);
+
+  if(totalMarked >= 5) triggerAchievement('Early Five', '🏅');
+  if(countMarked(idxByRow[0]) === idxByRow[0].length && idxByRow[0].length===5) triggerAchievement('Top Line','🏅');
+  if(countMarked(idxByRow[1]) === idxByRow[1].length && idxByRow[1].length===5) triggerAchievement('Middle Line','🏅');
+  if(countMarked(idxByRow[2]) === idxByRow[2].length && idxByRow[2].length===5) triggerAchievement('Bottom Line','🏅');
+  if(cornerIdxs.length===4 && countMarked(cornerIdxs)===4) triggerAchievement('Four Corners','🏅');
+  if(totalMarked === 15) triggerAchievement('Full House','🏆');
+}
+
+/* === Rules modal === */
+rulesBtn.addEventListener('click', ()=> { ensureAudio(); rulesModal.style.display='flex'; });
+rulesClose.addEventListener('click', ()=> rulesModal.style.display='none');
+rulesModal.addEventListener('click', (e)=>{ if(e.target===rulesModal) rulesModal.style.display='none'; });
+
+/* === Build ticket (unique per device on first load) === */
+function ensureDeviceId(){ let id = localStorage.getItem('tb_deviceId'); if(!id){ id = uuid4(); localStorage.setItem('tb_deviceId', id); } return id; }
+function ensureDeviceNonce(){ let n = localStorage.getItem('tb_deviceNonce'); if(!n){ n = randSeed(); localStorage.setItem('tb_deviceNonce', n); } return n; }
+function initialDeviceSeed(){
+  const id = ensureDeviceId(); const nonce = ensureDeviceNonce();
+  const raw = id + '|' + nonce + '|' + (navigator.userAgent||'').length + '|' + (Intl.DateTimeFormat().resolvedOptions().timeZone||'');
+  const h = xmur3(raw)();
+  return (h.toString(16).padStart(8,'0') + randSeed().slice(8,32));
+}
+
+function buildTicket(seed){
+  ticketSeed = seed;
+  localStorage.setItem('lastTicketSeed', ticketSeed);
+  undoStack = [];
+  gridData = generateTicket(ticketSeed);
+  renderTicket(gridData);
+}
+
+(function init(){
+  const saved = localStorage.getItem('lastTicketSeed');
+  if(saved){ buildTicket(saved); } else { buildTicket(initialDeviceSeed()); }
+})();
+
+/* === Controls === */
+undoBtn.addEventListener('click', undo);
+</script>
+</body>
+</html>
