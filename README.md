@@ -1,4 +1,5 @@
 LIVE DEMO -->   [Play Here](https://mandeepkoursardarni.github.io/Tambola/)
+TICKET GENERATO (your tickrt) --> 
 
 ######################
 🎉 Tambola Spinner 🎉
