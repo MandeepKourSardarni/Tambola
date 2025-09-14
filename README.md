@@ -7,6 +7,9 @@ https://mandeepkoursardarni.github.io/Tambola/
 ## 🎟️ Get Your Ticket
 https://mandeepkoursardarni.github.io/Tambola/tickets/
 
+![Tickets QR](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https%3A%2F%2Fmandeepkoursardarni.github.io%2FTambola%2Ftickets%2F)
+
+
 
 ######################
 🎉 Tambola Spinner 🎉
